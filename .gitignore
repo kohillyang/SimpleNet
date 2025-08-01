@@ -1,1 +1,6 @@
-__pycache__/*
+*/__pycache__/*
+
+.idea
+
+results*
+__pycache__/

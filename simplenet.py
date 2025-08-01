@@ -372,13 +372,19 @@ class SimpleNet(torch.nn.Module):
 
 
             # Compute PRO score & PW Auroc for all images
-            pixel_scores = metrics.compute_pixelwise_retrieval_metrics(
-                norm_segmentations, masks_gt)
-                # segmentations, masks_gt
-            full_pixel_auroc = pixel_scores["auroc"]
-
-            pro = metrics.compute_pro(np.squeeze(np.array(masks_gt)), 
-                                            norm_segmentations)
+            try:
+                pro = metrics.compute_pro(np.squeeze(np.array(masks_gt)),
+                                          norm_segmentations)
+                print(pro)
+                pixel_scores = metrics.compute_pixelwise_retrieval_metrics(
+                    norm_segmentations, masks_gt)
+                    # segmentations, masks_gt
+                full_pixel_auroc = pixel_scores["auroc"]
+            except Exception as e:
+                import logging
+                logging.exception(e)
+                full_pixel_auroc = -1
+                pro = -1
         else:
             full_pixel_auroc = -1 
             pro = -1
@@ -446,7 +452,9 @@ class SimpleNet(torch.nn.Module):
             print(f"----- {i_mepoch} I-AUROC:{round(auroc, 4)}(MAX:{round(best_record[0], 4)})"
                   f"  P-AUROC{round(full_pixel_auroc, 4)}(MAX:{round(best_record[1], 4)}) -----"
                   f"  PRO-AUROC{round(pro, 4)}(MAX:{round(best_record[2], 4)}) -----")
-        
+            p = os.path.join(self.ckpt_dir, f"ckpt_{i_mepoch}.pth")
+            torch.save(state_dict, p)
+            print(f"Saved checkpoint to {p}")
         torch.save(state_dict, ckpt_path)
         
         return best_record

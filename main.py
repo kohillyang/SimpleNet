@@ -224,9 +224,6 @@ def net(
 
 
 @main.command("dataset")
-@click.argument("name", type=str)
-@click.argument("data_path", type=click.Path(exists=True, file_okay=False))
-@click.option("--subdatasets", "-d", multiple=True, type=str, required=True)
 @click.option("--train_val_split", type=float, default=1, show_default=True)
 @click.option("--batch_size", default=2, type=int, show_default=True)
 @click.option("--num_workers", default=2, type=int, show_default=True)
@@ -243,9 +240,6 @@ def net(
 @click.option("--vflip", default=0.0, type=float)
 @click.option("--augment", is_flag=True)
 def dataset(
-    name,
-    data_path,
-    subdatasets,
     train_val_split,
     batch_size,
     resize,
@@ -262,93 +256,53 @@ def dataset(
     vflip,
     augment,
 ):
-    dataset_info = _DATASETS[name]
-    dataset_library = __import__(dataset_info[0], fromlist=[dataset_info[1]])
-
+    from datasets.cofired import CofiredDataset
     def get_dataloaders(seed):
         dataloaders = []
-        for subdataset in subdatasets:
-            train_dataset = dataset_library.__dict__[dataset_info[1]](
-                data_path,
-                classname=subdataset,
-                resize=resize,
-                train_val_split=train_val_split,
-                imagesize=imagesize,
-                split=dataset_library.DatasetSplit.TRAIN,
-                seed=seed,
-                rotate_degrees=rotate_degrees,
-                translate=translate,
-                brightness_factor=brightness,
-                contrast_factor=contrast,
-                saturation_factor=saturation,
-                gray_p=gray,
-                h_flip_p=hflip,
-                v_flip_p=vflip,
-                scale=scale,
-                augment=augment,
-            )
-
-            test_dataset = dataset_library.__dict__[dataset_info[1]](
-                data_path,
-                classname=subdataset,
-                resize=resize,
-                imagesize=imagesize,
-                split=dataset_library.DatasetSplit.TEST,
-                seed=seed,
-            )
-            
-            LOGGER.info(f"Dataset: train={len(train_dataset)} test={len(test_dataset)}")
-
-            train_dataloader = torch.utils.data.DataLoader(
-                train_dataset,
-                batch_size=batch_size,
-                shuffle=True,
-                num_workers=num_workers,
-                prefetch_factor=2,
-                pin_memory=True,
-            )
-
-            test_dataloader = torch.utils.data.DataLoader(
-                test_dataset,
-                batch_size=batch_size,
-                shuffle=False,
-                num_workers=num_workers,
-                prefetch_factor=2,
-                pin_memory=True,
-            )
-
-            train_dataloader.name = name
-            if subdataset is not None:
-                train_dataloader.name += "_" + subdataset
-
-            if train_val_split < 1:
-                val_dataset = dataset_library.__dict__[dataset_info[1]](
-                    data_path,
-                    classname=subdataset,
-                    resize=resize,
-                    train_val_split=train_val_split,
-                    imagesize=imagesize,
-                    split=dataset_library.DatasetSplit.VAL,
-                    seed=seed,
-                )
-
-                val_dataloader = torch.utils.data.DataLoader(
-                    val_dataset,
-                    batch_size=batch_size,
-                    shuffle=False,
-                    num_workers=num_workers,
-                    prefetch_factor=4,
-                    pin_memory=True,
-                )
-            else:
-                val_dataloader = None
-            dataloader_dict = {
-                "training": train_dataloader,
-                "validation": val_dataloader,
-                "testing": test_dataloader,
-            }
-
-            dataloaders.append(dataloader_dict)
+        train_dataset = CofiredDataset(
+            dataset_root="/home/kohill/aoidev/datasets/中瓷/3D下料/train/cropped"
+        )
+        val_dataset = CofiredDataset(
+            dataset_root="/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped"
+        )
+        test_dataset = CofiredDataset(
+            dataset_root="/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped"
+        )
+        
+        train_dataloader = torch.utils.data.DataLoader(
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            prefetch_factor=2,
+            pin_memory=True,
+        )
+        train_dataloader.name = "cofired_train"
+        test_dataloader = torch.utils.data.DataLoader(
+            test_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            prefetch_factor=2,
+            pin_memory=True,
+        )
+        test_dataloader.name = "cofired_test"
+        val_dataloader = torch.utils.data.DataLoader(
+            val_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            prefetch_factor=4,
+            pin_memory=True,
+        )
+        val_dataloader.name = "cofired_val"        
+        val_dataloader = None
+        dataloader_dict = {
+            "training": train_dataloader,
+            "validation": val_dataloader,
+            "testing": test_dataloader,
+        }
+        dataloaders.append(dataloader_dict)            
         return dataloaders
 
     return ("get_dataloaders", get_dataloaders)
