@@ -37,7 +37,7 @@ class SimpleNetJIT(torch.nn.Module):
             pre_proj=1
         )
 
-        ckpt_path = "/home/kohill/Desktop/workspace/SimpleNet/results/MVTecAD_Results/simplenet_mvtec/run/models/0/cofired_train/ckpt_2.pth"
+        ckpt_path = "/home/kohill/Desktop/workspace/SimpleNet/results/MVTecAD_Results/simplenet_mvtec/run/models/0/cofired_train/ckpt_1.pth"
         if os.path.exists(ckpt_path):
             print(f"Loading trained model from {ckpt_path}")
             state_dict = torch.load(ckpt_path, map_location=device)
@@ -58,16 +58,16 @@ class SimpleNetJIT(torch.nn.Module):
     def forward(self, image):
         image = image.float() / 255.0
         image = (image - self.mean) / self.std
-        # features, patch_shapes = self.model._embed(image, provide_patch_shapes=True,
-        #                                          evaluation=True)
-        # features = self.model.pre_projection(features)
-        # image_scores = -1 * self.model.discriminator(features)
+        features, patch_shapes = self.model._embed(image, provide_patch_shapes=True,
+                                                 evaluation=True)
+        features = self.model.pre_projection(features)
+        image_scores = -1 * self.model.discriminator(features)
         #
-        # image_scores = image_scores.reshape(28, 28).sigmoid()
-        # return image_scores
-        image_scores, masks, features = self.model._predict(image)
-        masks = torch.from_numpy(masks[0]).sigmoid()
-        return masks
+        image_scores = image_scores.reshape(patch_shapes[0]).sigmoid()
+        return image_scores
+        # image_scores, masks, features = self.model._predict(image)
+        # masks = torch.from_numpy(masks[0]).sigmoid()
+        # return masks
         # return mage_scores, masks, features
 
     def eval(self):
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     # Example usage
     image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/148-abnormal.bmp"  # Replace with actual image path
     image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/174-abnormal.bmp"
-    image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/156-abnormal.bmp"
+    # image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/156-abnormal.bmp"
 
     image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/168.bmp"
     image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/167.bmp"
@@ -107,8 +107,8 @@ if __name__ == "__main__":
 
     print(f"Processing image: {image_path}")
     image = cv2.imread(image_path)[:, :, ::-1]
-    image_blur = cv2.GaussianBlur(image, (5, 5), 0)
-    image_transpose = np.transpose(image_blur, (2, 0, 1)).astype(np.float32)
+    # image_blur = cv2.GaussianBlur(image, (5, 5), 0)
+    image_transpose = np.transpose(image, (2, 0, 1)).astype(np.float32)
     image_tensor1 = torch.from_numpy(image_transpose[np.newaxis]).to(device)
     image_tensor1 = torch.nn.functional.interpolate(image_tensor1, size=(224, 224), mode="bilinear", align_corners=False)
     image_tensor2 = preprocess_image(image_path).to(device) * 255.0
