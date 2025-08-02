@@ -265,15 +265,14 @@ class SimpleNet(torch.nn.Module):
             _features = F.interpolate(
                 _features.unsqueeze(1),
                 size=(ref_num_patches[0], ref_num_patches[1]),
-                mode="bilinear",
-                align_corners=False,
+                mode="nearest"
             )
             _features = _features.squeeze(1)
             _features = _features.reshape(
                 *perm_base_shape[:-2], ref_num_patches[0], ref_num_patches[1]
             )
             _features = _features.permute(0, -2, -1, 1, 2, 3)
-            _features = _features.reshape(len(_features), -1, *_features.shape[-3:])
+            _features = _features.reshape(_features.shape[0], -1, *_features.shape[-3:])
             features[i] = _features
         features = [x.reshape(-1, *x.shape[-3:]) for x in features]
         

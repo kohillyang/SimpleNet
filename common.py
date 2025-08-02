@@ -49,6 +49,19 @@ class Preprocessing(torch.nn.Module):
             _features.append(module(feature))
         return torch.stack(_features, dim=1)
 
+def adaptive_avg_pool1d(feature, dim):
+    feature_mask = torch.ones(feature.shape[-1], device=feature.device, dtype=torch.float32)
+    dim_mean = (feature.shape[-1] + dim - 1) // dim
+    # padding if necessary
+    if feature.shape[-1] % dim != 0:
+        feature = F.pad(feature, (0, dim - feature.shape[-1] % dim))
+        feature_mask = F.pad(feature_mask, (0, dim - feature.shape[-1] % dim), value=0)
+    # reshape to (batch_size, channels, num_patches, dim_mean)
+    feature = feature.reshape(feature.shape[0], feature.shape[1], dim, dim_mean)    
+    feature_mask = feature_mask.reshape(1, 1, dim, dim_mean)
+    feature_sum = feature.sum(dim=-1)
+    feature_mask_sum = feature_mask.sum(dim=-1)
+    return feature_sum / feature_mask_sum
 
 class MeanMapper(torch.nn.Module):
     def __init__(self, preprocessing_dim):
@@ -56,7 +69,7 @@ class MeanMapper(torch.nn.Module):
         self.preprocessing_dim = preprocessing_dim
 
     def forward(self, features):
-        features = features.reshape(len(features), 1, -1)
+        features = features.reshape(features.shape[0], 1, -1)
         return F.adaptive_avg_pool1d(features, self.preprocessing_dim).squeeze(1)
 
 
@@ -68,9 +81,9 @@ class Aggregator(torch.nn.Module):
     def forward(self, features):
         """Returns reshaped and average pooled features."""
         # batchsize x number_of_layers x input_dim -> batchsize x target_dim
-        features = features.reshape(len(features), 1, -1)
+        features = features.reshape(features.shape[0], 1, -1)
         features = F.adaptive_avg_pool1d(features, self.target_dim)
-        return features.reshape(len(features), -1)
+        return features.reshape(features.shape[0], -1)
 
 
 class RescaleSegmentor:
