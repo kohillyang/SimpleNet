@@ -105,8 +105,8 @@ class CofiredDataset(torch.utils.data.Dataset):
         print(f"Found {len(self.images)} images in {dataset_root}")
         
         self.transform_img = Compose([
-            ResizeAndCrop((224, 224), rel_scale_range=(1.0, 1.8), p=0.8),
-            RandomHFlip(0.5),
+            ResizeAndCrop((224, 224), rel_scale_range=(1.0, 1.8), p=0),
+            # RandomHFlip(0.5),
             RandomVFlip(0.5),
             ToTensor(),
             Normalize(IMAGENET_MEAN, IMAGENET_STD),

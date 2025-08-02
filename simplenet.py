@@ -228,7 +228,7 @@ class SimpleNet(torch.nn.Module):
     def _embed(self, images, detach=True, provide_patch_shapes=False, evaluation=False):
         """Returns feature embeddings for images."""
 
-        B = len(images)
+        # B = len(images)
         if not evaluation and self.train_backbone:
             self.forward_modules["feature_aggregator"].train()
             features = self.forward_modules["feature_aggregator"](images, eval=evaluation)
