@@ -392,7 +392,7 @@ class SimpleNet(torch.nn.Module):
         return auroc, full_pixel_auroc, pro
         
     
-    def train(self, training_data, test_data):
+    def train_data(self, training_data, test_data):
 
         
         state_dict = {}
