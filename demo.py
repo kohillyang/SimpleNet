@@ -9,11 +9,10 @@ import cv2
 
 
 class SimpleNetJIT(torch.nn.Module):
-    def __init__(self, ckpt_path):
+    def __init__(self, ckpt_path, input_shape):
         super().__init__()
         backbone_name = "resnet50"
         layers_to_extract_from = ["layer2", "layer3"]
-        input_shape = [3, 224, 224]
 
         backbone = backbones.load(backbone_name)
         backbone.name = backbone_name
@@ -51,7 +50,7 @@ class SimpleNetJIT(torch.nn.Module):
     def forward(self, image):
         # 模型代码的一些写法导致模型无法支持动态batch_size，这里我们显式地对输入做reshape
         # 这相当于插入了一个断言，强制了输入的batch_size
-        image = image.reshape(4, 3, 224, 224)
+        # image = image.reshape(16, 3, 224, 224)
         features, patch_shapes = self.model._embed(image, provide_patch_shapes=True,
                                                  evaluation=True)
         features = self.model.pre_projection(features)
@@ -71,40 +70,27 @@ class SimpleNetJIT(torch.nn.Module):
         for module in self.model.children():
             module.train(False)
 
-def preprocess_image(image_path):
-    from torchvision import transforms
-    import PIL.Image
-    """Preprocess image for model input"""
-    transform = transforms.Compose([
-        transforms.Resize(224),
-        transforms.ToTensor(),
-    ])
-
-    image = PIL.Image.open(image_path).convert("RGB")
-    original_image = np.array(image)
-    processed_image = transform(image).unsqueeze(0)  # Add batch dimension
-
-    return processed_image
-
 if __name__ == "__main__":
     # Example usage
-    # image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/148-abnormal.bmp"  # Replace with actual image path
+    image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/148-abnormal.bmp"
     # image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/174-abnormal.bmp"
     # image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/156-abnormal.bmp"
-    # image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/148-abnormal.bmp"
+    image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/148-abnormal.bmp"
     # image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/168.bmp"
     # image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/167.bmp"
     # image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/val/cropped/搭环/178.bmp"
-    image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/train/cropped/HS20250730195927177/0.bmp"
+    # image_path = "/home/kohill/aoidev/datasets/中瓷/3D下料/train/cropped/HS20250730195927177/0.bmp"
     # Check if CUDA is available
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
-    ckpt_path = "/home/kohill/Desktop/workspace/SimpleNet/results/MVTecAD_Results/simplenet_mvtec/run/models/0/cofired_train/ckpt_0.pth"
+    ckpt_path = "/home/kohill/Desktop/workspace/SimpleNet/results/MVTecAD_Results/simplenet_mvtec/run/models/0/cofired_train/ckpt_7.pth"
     name_prefix = ckpt_path[:-4]
     # jit_output_path = name_prefix + "-jit.pth"
-    onnx_output_path = name_prefix + "-onnx.onnx"
+    # onnx_output_path = name_prefix + "-onnx.onnx"
     jit_output_path = "/home/kohill/aoidev/home/kohill/tmp/0802/ckpt_4-jit.pt"
-    model = SimpleNetJIT(ckpt_path=ckpt_path).to(device)
+    onnx_output_path = "/home/kohill/aoidev/home/kohill/tmp/0802/ckpt_4.onnx"
+    input_shape = (3, 224, 224)
+    model = SimpleNetJIT(ckpt_path=ckpt_path, input_shape=input_shape).to(device)
     model.eval()
 
     print(f"Processing image: {image_path}")
@@ -112,8 +98,8 @@ if __name__ == "__main__":
     # image_blur = cv2.GaussianBlur(image, (5, 5), 0)
     image_transpose = np.transpose(image, (2, 0, 1)).astype(np.float32)
     image_tensor1 = torch.from_numpy(image_transpose[np.newaxis]).to(device)
-    image_tensor1 = torch.nn.functional.interpolate(image_tensor1, size=(224, 224), mode="bilinear", align_corners=False)
-    image_tensor1 = torch.cat([image_tensor1, image_tensor1] * 2, dim=0)
+    image_tensor1 = torch.nn.functional.interpolate(image_tensor1, size=input_shape[1:], mode="bilinear", align_corners=False)
+    image_tensor1 = torch.cat([image_tensor1, ] * 16, dim=0)
     # image_tensor2 = preprocess_image(image_path).to(device) * 255.0
     def normalize_tensor(tensor):
         IMAGENET_MEAN = [0.485, 0.456, 0.406]
@@ -126,31 +112,25 @@ if __name__ == "__main__":
 
 
     image_tensor1_normalized = normalize_tensor(image_tensor1)
-    # image_tensor2_normalized = normalize_tensor(image_tensor2)
     with torch.no_grad():
         # Use the predict method directly
         masks1 = model(image_tensor1_normalized)
-        # masks2 = model(image_tensor2_normalized)
         traced_model = torch.jit.trace(model, image_tensor1_normalized)
         torch.jit.save(traced_model, jit_output_path)
         # torch.onnx.export(
         #     traced_model,
-        #     image_tensor1,
+        #     image_tensor1_normalized,
         #     onnx_output_path,
         #     export_params=True,
         #     opset_version=11,
         #     input_names=['input'],
-        #     output_names=['output'],
-        #     dynamic_axes={
-        #         'input': {0: 'batch_size'},
-        #         'output': {0: 'batch_size'}
-        #     }
+        #     output_names=['output']
         # )
-        # print(f"ONNX model exported to: {onnx_output_path}")
+        print(f"ONNX model exported to: {onnx_output_path}")
     fig, axes = plt.subplots(2, 2, figsize=(16, 4))
     axes = axes.reshape(-1)
     axes[0].imshow(image_tensor1.cpu().numpy()[0].transpose((1, 2, 0)).astype(np.uint8))
     axes[1].imshow(masks1[0, 0].sigmoid().data.cpu().numpy(), vmin=0, vmax=1)
-    # axes[2].imshow(image_tensor2.cpu().numpy()[0].transpose((1, 2, 0)).astype(np.uint8))
-    # axes[3].imshow(masks2[0, 0].sigmoid().data.cpu().numpy(), vmin=0, vmax=1)
+    axes[2].imshow(image_tensor1.cpu().numpy()[0].transpose((1, 2, 0)).astype(np.uint8))
+    axes[3].imshow(masks1[1, 0].sigmoid().data.cpu().numpy(), vmin=0, vmax=1)
     plt.show()
